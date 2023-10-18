@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract PaymentToken is ERC20 {
     constructor(uint256 _initialSupply) ERC20("PaymentToken", "PayTok") {
-        _mint(address(this), _initialSupply);
+        //_mint(address(this), _initialSupply);
+        _mint(msg.sender, _initialSupply);
     }
 }

@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {PaymentToken} from "./PaymentToken.sol";
+import {BondToken} from "./BondToken.sol";
 
-contract Bond is ERC20, Ownable {
+contract Bond is Ownable {
     address public admin;
     uint256 public supply;
     uint256 public price;
@@ -18,6 +19,7 @@ contract Bond is ERC20, Ownable {
 
     uint256 public init_time;
     PaymentToken private payment_token;
+    BondToken private bond_token;
 
     uint256 public constant secondsInADay = 86400;
 
@@ -43,8 +45,8 @@ contract Bond is ERC20, Ownable {
         uint256 _fee_days_interval,
         string memory _fee_type,
         uint256 _end_time
-    ) ERC20("Bond", "BND") {
-        _mint(address(this), _initialSupply);
+    ) {
+        // _mint(address(this), _initialSupply);
         admin = msg.sender;
         supply = _initialSupply;
         price = _price;
@@ -54,6 +56,15 @@ contract Bond is ERC20, Ownable {
         bond_state = BOND_STATE.Initiated;
         end_time = _end_time;
         payment_token = PaymentToken(_payment_token);
+        bond_token = new BondToken(_initialSupply);
+    }
+
+    function getTime() public view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function getBalance(address _user) public view returns (uint256) {
+        return bond_token.balanceOf(_user);
     }
 
     function userExists(address _user) public view returns (bool) {
@@ -62,7 +73,7 @@ contract Bond is ERC20, Ownable {
     }
 
     function addUser(address _user, string memory _name) public onlyOwner {
-        require(!userExists(_user), "This user aleady exists!");
+        require(userExists(_user) == false, "This user aleady exists!");
         addressToUser[_user].name = _name;
         addressToUser[_user].status = true;
     }
@@ -79,20 +90,21 @@ contract Bond is ERC20, Ownable {
         if (current_time <= temp_end_time) {
             temp_end_time = current_time;
         }
-        uint256 time_elasped_in_days = (temp_end_time - init_time) /
-            secondsInADay;
+        uint256 time_elasped_in_days = ((temp_end_time - init_time) /
+            secondsInADay) / fee_days_interval;
         // string memory simple = "Simple";
         if (time_elasped_in_days == 0) {
+            // fee_type = "CoC";
             return price;
         } else if (
             keccak256(abi.encodePacked(fee_type)) ==
             keccak256(abi.encodePacked("Compound"))
         ) {
             return
-                (price * ((price + 1000) ** time_elasped_in_days)) /
+                (price * ((1000 + fee_rate) ** time_elasped_in_days)) /
                 1000 ** time_elasped_in_days;
         } else {
-            return price + (price * time_elasped_in_days * fee_rate) / 1000;
+            return price + ((price * time_elasped_in_days * fee_rate) / 1000);
         }
     }
 
@@ -130,7 +142,7 @@ contract Bond is ERC20, Ownable {
             "The bond duration has not started yet"
         );
         require(
-            userExists(msg.sender),
+            userExists(msg.sender) == true,
             "This user is not allowed to purchase bonds"
         );
         require(
@@ -139,9 +151,9 @@ contract Bond is ERC20, Ownable {
         );
         // _mint(address(this), _amount); For some reason Cheesecake Labs increased amount of bonds evertime bonds are purchased
         uint256 total = _amount * getPrice();
-        payment_token.approve(address(this), total);
+        // payment_token.approve(address(this), total);
         payment_token.transferFrom(msg.sender, address(this), total);
-        transfer(msg.sender, total);
+        bond_token.transfer(msg.sender, _amount);
     }
 
     function withdraw(uint256 _amount) public onlyOwner {
@@ -159,15 +171,21 @@ contract Bond is ERC20, Ownable {
                 bond_state == BOND_STATE.Paused
         );
         require(block.timestamp >= end_time);
-        require(payment_token.balanceOf(address(this)) > getPrice() * supply);
+        // require(
+        //     payment_token.balanceOf(address(this)) >= getPrice() * supply,
+        //     "This contract does not have enough tokens to enable this option"
+        // );
         bond_state = BOND_STATE.Cash_Out_Enabled;
     }
 
     function cashOut() public {
         require(bond_state == BOND_STATE.Cash_Out_Enabled);
         require(userExists(msg.sender), "This user does not exist");
-        uint256 total_payment = balanceOf(msg.sender) * getPrice();
-        _burn(msg.sender, total_payment);
+        uint256 bondtokens = getBalance(msg.sender);
+        uint256 total_payment = bondtokens * getPrice();
+        bond_token.burn(msg.sender, bondtokens);
+        // supply -= bondtokens;
+        //_burn(msg.sender, total_payment);
         payment_token.transfer(msg.sender, total_payment);
     }
 }
