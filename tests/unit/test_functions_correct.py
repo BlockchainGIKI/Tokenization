@@ -299,6 +299,6 @@ def test_can_cash_out():
     bond.cashOut({"from": account})
 
     # Assert
-    payment_token.balanceOf(account) == 1e9
+    assert payment_token.balanceOf(account) == 1e9
     with pytest.raises(exceptions.VirtualMachineError):
         bond.cashOut({"from": account1})

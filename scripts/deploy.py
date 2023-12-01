@@ -15,7 +15,7 @@ def deploy():
     fee_rate = 150
     fee_days_interval = 1
     fee_type = "Simple"
-    end_time = int(datetime(2023, 10, 30, 12, 0).timestamp())
+    end_time = int(datetime(2023, 11, 23, 16, 5).timestamp())
     print("Deploying Bond...")
     bond = Bond.deploy(
         initialSupply,
