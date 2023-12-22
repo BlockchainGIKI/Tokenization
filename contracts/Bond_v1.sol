@@ -27,6 +27,7 @@ contract Bond_v1 is Ownable {
         string name;
         bool status;
     }
+    address[] public users;
     mapping(address => User) public addressToUser;
 
     enum BOND_STATE {
@@ -77,6 +78,7 @@ contract Bond_v1 is Ownable {
         require(userExists(_user) == false, "This user aleady exists!");
         addressToUser[_user].name = _name;
         addressToUser[_user].status = true;
+        users.push(_user);
     }
 
     function removeUser(address _user) public onlyOwner {
@@ -186,28 +188,27 @@ contract Bond_v1 is Ownable {
                 bond_state == BOND_STATE.Paused
         );
         require(block.timestamp < end_time, "Bond has reached maturity");
-        // require(
-        //     payment_token.balanceOf(address(this)) >= getPrice() * supply,
-        //     "This contract does not have enough tokens to enable this option"
-        // );
         bond_state = BOND_STATE.Interest_Enabled;
     }
 
-    function cashOut() public {
+    function cashOut() public onlyOwner {
         require(bond_state == BOND_STATE.Cash_Out_Enabled);
-        require(userExists(msg.sender), "This user does not exist");
-        uint256 bondtokens = getBalance(msg.sender);
-        uint256 total_payment = bondtokens * getPrice();
-        bond_token.burn(msg.sender, bondtokens);
-        // supply -= bondtokens;
-        //_burn(msg.sender, total_payment);
-        payment_token.transfer(msg.sender, total_payment);
+        for (uint256 i = 0; i < users.length; i++) {
+            uint256 bondtokens = getBalance(users[i]);
+            uint256 total_payment = bondtokens * getPrice();
+            bond_token.burn(users[i], bondtokens);
+            // supply -= bondtokens;
+            //_burn(msg.sender, total_payment);
+            payment_token.transfer(users[i], total_payment);
+        }
     }
 
     function payInterest() public {
         require(bond_state == BOND_STATE.Interest_Enabled);
-        require(userExists(msg.sender), "This user does not exist");
         uint256 total_payment = (fee_rate * price) / 1000;
-        payment_token.transfer(msg.sender, total_payment);
+        for (uint256 i = 0; i < users.length; i++) {
+            payment_token.transfer(users[i], total_payment);
+        }
+        bond_state = BOND_STATE.Available;
     }
 }
